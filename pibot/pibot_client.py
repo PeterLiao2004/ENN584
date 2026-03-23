@@ -2,7 +2,7 @@
 import time
 import requests
 import sys
-from threading import Thre
+from threading import Thread
 import json
 
 import cv2

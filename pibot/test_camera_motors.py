@@ -13,7 +13,7 @@ from pibot_client import PiBot
 # if using VS code. Note that the IP address needs to be enclosed in quotation
 # marks to make it a string.
 
-bot = PiBot(ip="10.42.0.1")
+bot = PiBot(ip="172.19.232.188")
 
 print(f'Voltage: {bot.getVoltage():.2f}V')
 print(f'Current: {bot.getCurrent():.2f}A')
