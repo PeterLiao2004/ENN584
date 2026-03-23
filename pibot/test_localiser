@@ -1,0 +1,13 @@
+import argparse
+import time
+import cv2
+from pibot_client import PiBot
+
+pb = PiBot('robotIP', localiser_ip='egb439localiser1')
+
+pose = pb.getLocalizerPose
+
+image = pb.getLocalizerImage
+
+cv2.imshow("windowName",image) # Display it
+cv2.waitKey(500)
