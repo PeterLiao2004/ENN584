@@ -2,7 +2,7 @@
 import time
 import requests
 import sys
-from threading import Threpip install opencv-pythonad
+from threading import Thre
 import json
 
 import cv2
