@@ -115,14 +115,84 @@ def sense_landmarks(step):
     return data['sensor'][range(idx,idx+10)]
 
 def init_landmarks(z, Q, mu, Sigma):
+    #z: measurement of the landmarks (range, bearing)
+    #Q: measurement noise covariance
+    #mu: current state estimate (robot pose and landmark positions)
+    #Sigma: current covariance estimate
+    
+    # Robot pose
+    x = mu[0, 0]
+    y = mu[1, 0]
+    theta = mu[2, 0]
+    
+    
+    for i in range(n_landmarks):
+        r = z[2 * i]
+        b = z[2 * i + 1]
 
-    raise NotImplementedError
+        # Convert from polar (relative to robot) to global Cartesian
+        angle = theta + b
+        lx = x + r * np.cos(angle)
+        ly = y + r * np.sin(angle)
+
+        # Store landmark position in mu
+        row1 = np.array([[lx]])
+        row2 = np.array([[ly]])
+        
+        mu = np.append(mu, row1, axis=0)
+        mu = np.append(mu, row2, axis=0)
+
+        # Jacobian of landmark position wrt measurement [r, b]
+        # lx = x + r cos(theta+b)
+        # ly = y + r sin(theta+b)
+        Jz = np.array([
+            [np.cos(angle), -r * np.sin(angle)],
+            [np.sin(angle),  r * np.cos(angle)]
+        ])
+
+        # Initialize landmark covariance block
+        Sigma = np.matrix([[Sigma, 0],
+                           [0, Jz*Q*Jz.T]])
+
+    return mu, Sigma
 
 def predict_step(mu, Sigma, d, dth, R):
     
-    raise NotImplementedError
+    # mu: [x,y,theta]
+    # #mu = f(mu, u) where f is the motion model and u is the control input (d, dth)
+    #x_t = x_t-1 + dx
+    
+    dx = d * np.cos(mu[2,0]) #
+    dy = d * np.sin(mu[2,0])
+    
+    x_new = mu[0,0] + dx
+    y_new = mu[1,0] + dy
+    
+    theta_new = wrap_to_pi(mu[2,0] + dth)
+    mu = np.matrix([[x_new], [y_new], [theta_new]])
+    
+    #Sigma = Jacobian * Sigma * Jacobian.T + R
+    Jx = np.matrix([[1, 0, -dy],
+                    [0, 1, dx],
+                    [0, 0, 1]])
+    
+    Ju = np.matrix([[np.cos(mu[2,0]), 0],
+                    [np.sin(mu[2,0]), 0],
+                    [0, 1]])
+    
+    Sigma = Jx * Sigma * Jx.T + Ju*R*Ju.T
+    
+    return mu, Sigma
 
 def update_step(landmark_id, z, mu, Sigma, Q):
+    
+    #landmark_id: id of the landmark being observed
+    #z: measurement of the landmark (range, bearing)
+    #mu: current state estimate (robot pose and landmark positions)
+    #Sigma: current covariance estimate
+    #Q: measurement noise covariance
+    
+    
     
     raise NotImplementedError
 
@@ -158,13 +228,13 @@ if __name__ == "__main__":
             mu, Sigma = init_landmarks(z, Q, mu, Sigma)
             continue
          
-        for landmark_id, (r, b) in enumerate(z):
-            zi = np.matrix(
-                [[r],
-                 [b]]
-                )
-            mu, Sigma = update_step(landmark_id, zi, mu, Sigma, Q)
-            # print(Sigma.diagonal())
+        # for landmark_id, (r, b) in enumerate(z):
+        #     zi = np.matrix(
+        #         [[r],
+        #          [b]]
+        #         )
+        #     mu, Sigma = update_step(landmark_id, zi, mu, Sigma, Q)
+        #     print(Sigma.diagonal())
         
         update_plot(mu, Sigma, axes)
         
