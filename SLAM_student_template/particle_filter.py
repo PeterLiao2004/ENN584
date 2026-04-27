@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+from dbm import error
+
 import numpy as np
 from util_functions import *
 
@@ -36,8 +38,11 @@ class ParticleFilter:
             noisy_dth = dth * self.ones
 
         # use motion model to update particles poses based on the noisy odometer readings
+        self.particles[:, 0] += noisy_d * np.cos(self.particles[:, 2])
+        self.particles[:, 1] += noisy_d * np.sin(self.particles[:, 2])
+        self.particles[:, 2] += noisy_dth
 
-        raise NotImplementedError
+        return self.particles
         
 
     def update(self, z, global_map=None, resample=False):
@@ -59,7 +64,25 @@ class ParticleFilter:
         #perform a particle filter update, involving updating particle weights, resampling (if necessary), and then calculting
         #positions of the landmarks based on sensor readings and updated particle weights
         
-        raise NotImplementedError
+        # update weights based on how well particles predict sensor measurements
+        self.update_weights(z, global_map)
+        
+        # resample if necessary
+        if resample:
+            self.resample()
+        
+        # calculate landmark positions based on sensor readings and updated particle weights
+        
+        #create an empty global map to fill in
+        new_global_map = np.zeros_like(global_map)
+        
+        # recalculate landmark positions from each particle
+        for particle_idx in range(self.n_particles):
+            for landmark_id, (r, b) in enumerate(z):
+
+        
+        
+        return global_map
         
         
     def update_weights(self, z, global_map):
@@ -71,7 +94,41 @@ class ParticleFilter:
         To be called in self.update() method
         
         '''
-        raise NotImplementedError
+        for particle_idx in range(self.n_particles):
+            
+            particle = self.particles[particle_idx, :]
+            
+            for landmark_id, (range_meas, bearing_meas) in enumerate(z):
+                
+                landmark = global_map[landmark_id]
+                
+                # Heading wrap for particles
+                particle[2] = wrap_nparray_to_pi(particle[2])
+
+                # predictions
+                pred_ranges, pred_bearings = xy_to_rangebearing(particle, landmark)
+                pred_bearings = wrap_nparray_to_pi(pred_bearings)
+                # errors
+                range_error = pred_ranges - range_meas
+                bearing_error = wrap_nparray_to_pi(pred_bearings - bearing_meas)
+                
+                # values for weighting errors (can be tuned)
+                lambda_r = 1
+                lambda_b = 1
+                
+                exp_error = np.exp((lambda_r * range_error) + (lambda_b * bearing_error))
+                
+                self.weights[particle_idx] *= 1 - exp_error
+            
+            # Normalise weights
+            total = np.sum(self.weights)
+
+            if total == 0:
+                self.weights = np.ones(self.n_particles) / self.n_particles
+            else:
+                self.weights /= total
+        
+        return self.weights
             
             
 
@@ -110,6 +167,7 @@ class ParticleFilter:
                 
         global_map /= self.n_particles
         self.global_map = global_map
+        return global_map
         
     def resample(self):
         '''
