@@ -79,7 +79,8 @@ class ParticleFilter:
         # recalculate landmark positions from each particle
         for particle_idx in range(self.n_particles):
             for landmark_id, (r, b) in enumerate(z):
-
+                # convert range and bearing to x and y coordinates
+                
         
         
         return global_map
@@ -94,39 +95,40 @@ class ParticleFilter:
         To be called in self.update() method
         
         '''
+        new_weights = np.ones(self.n_particles)
+
         for particle_idx in range(self.n_particles):
-            
             particle = self.particles[particle_idx, :]
-            
+            particle[2] = wrap_to_pi(particle[2])
+
             for landmark_id, (range_meas, bearing_meas) in enumerate(z):
-                
                 landmark = global_map[landmark_id]
-                
-                # Heading wrap for particles
-                particle[2] = wrap_nparray_to_pi(particle[2])
 
-                # predictions
-                pred_ranges, pred_bearings = xy_to_rangebearing(particle, landmark)
-                pred_bearings = wrap_nparray_to_pi(pred_bearings)
-                # errors
-                range_error = pred_ranges - range_meas
-                bearing_error = wrap_nparray_to_pi(pred_bearings - bearing_meas)
-                
-                # values for weighting errors (can be tuned)
-                lambda_r = 1
-                lambda_b = 1
-                
-                exp_error = np.exp((lambda_r * range_error) + (lambda_b * bearing_error))
-                
-                self.weights[particle_idx] *= 1 - exp_error
-            
-            # Normalise weights
-            total = np.sum(self.weights)
+                dx = landmark[0] - particle[0]
+                dy = landmark[1] - particle[1]
 
-            if total == 0:
-                self.weights = np.ones(self.n_particles) / self.n_particles
-            else:
-                self.weights /= total
+                pred_range = np.sqrt(dx**2 + dy**2)
+                pred_bearing = wrap_to_pi(np.arctan2(dy, dx) - particle[2])
+
+                range_error = pred_range - range_meas
+                bearing_error = wrap_to_pi(pred_bearing - bearing_meas)
+
+                # Use a Gaussian-like likelihood so better matches get larger weights.
+                lambda_r = 1.0
+                lambda_b = 1.0
+                new_weights[particle_idx] *= np.exp(
+                    -0.5 * (
+                        lambda_r * range_error**2 +
+                        lambda_b * bearing_error**2
+                    )
+                )
+
+        total = np.sum(new_weights)
+
+        if total == 0:
+            self.weights = np.ones(self.n_particles) / self.n_particles
+        else:
+            self.weights = new_weights / total
         
         return self.weights
             
