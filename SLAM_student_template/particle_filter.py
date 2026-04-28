@@ -77,11 +77,22 @@ class ParticleFilter:
         new_global_map = np.zeros_like(global_map)
         
         # recalculate landmark positions from each particle
-        for particle_idx in range(self.n_particles):
-            for landmark_id, (r, b) in enumerate(z):
-                # convert range and bearing to x and y coordinates
-                
-        
+
+        for landmark_id, (r, b) in enumerate(z):
+            # convert range and bearing measurements to x and y coordinates landmark estimates based on each particle's pose
+            x, y = rangebearing_to_xy(self.particles, r, b)
+
+            # save that landmark position to the local map for that particle
+            self.local_map[:, landmark_id, 0] = x
+            self.local_map[:, landmark_id, 1] = y
+            
+            # add the landmark estimate into the new global map, weighted by the particle's weight (so better particles contribute more to the global map)
+            new_global_map[landmark_id, 0] = np.sum(self.weights * x)
+            new_global_map[landmark_id, 1] = np.sum(self.weights * y)
+
+        # after all particles are processed, normalize or finish the weighted average and store it as the new global map
+        global_map = new_global_map
+        self.global_map = new_global_map
         
         return global_map
         
@@ -185,6 +196,21 @@ class ParticleFilter:
 
         '''
         #to resample, calculate mean and variance of remaining particles and sample from that as a normal distribution
+        
+        # 1. Resample particles using self.weights
+        #    High-weight particles are more likely to be selected.
+        #    Low-weight particles are less likely to survive.
+        
+
+        # 2. Keep/copy the selected particles
+        #    The new particle set is made from the selected old particles.
+
+        # 3. Optional: add small random noise
+        #    This helps maintain particle diversity so particles do not all collapse
+        #    into identical copies.
+
+        # 4. Reset weights to uniform
+        #    After resampling, each particle starts with equal weight again.
 
         raise NotImplementedError
 
