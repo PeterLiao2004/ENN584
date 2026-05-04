@@ -184,7 +184,7 @@ class ParticleFilter:
         
     def resample(self):
         '''
-        Handle particle resampling here. In the initialization method, n_resamples
+        Handle particle resampling here. In the initialization method, n_resample
         is defined and represents the number of particles we want to resample
         because we aren't confident in their estimate of robot pose.
         
@@ -195,24 +195,58 @@ class ParticleFilter:
             self.particles and self.weights is updated (but not directly returned)
 
         '''
-        #to resample, calculate mean and variance of remaining particles and sample from that as a normal distribution
+        weight_sum = np.sum(self.weights)
+
+        if weight_sum <= 1e-12:
+            self.weights = np.ones(self.n_particles) / self.n_particles
+        else:
+            self.weights = self.weights / weight_sum
+
+        sorted_indices = np.argsort(self.weights)
+
+        worst_indices = sorted_indices[:self.n_resample]
+        best_indices = sorted_indices[self.n_resample:]
+
+        best_particles = self.particles[best_indices]
+        best_weights = self.weights[best_indices]
+        best_weights = best_weights / np.sum(best_weights)
+
+        mean_x = np.sum(best_weights * best_particles[:, 0])
+        mean_y = np.sum(best_weights * best_particles[:, 1])
+
+        mean_theta = np.arctan2(
+            np.sum(best_weights * np.sin(best_particles[:, 2])),
+            np.sum(best_weights * np.cos(best_particles[:, 2]))
+        )
+
+        mean_pose = np.array([mean_x, mean_y, mean_theta])
+
+        std_x = np.sqrt(np.sum(best_weights * (best_particles[:, 0] - mean_x)**2))
+        std_y = np.sqrt(np.sum(best_weights * (best_particles[:, 1] - mean_y)**2))
+
+        theta_error = wrap_nparray_to_pi(best_particles[:, 2] - mean_theta)
+        std_theta = np.sqrt(np.sum(best_weights * theta_error**2))
+
+        std_pose = np.array([
+            max(std_x, 0.05),
+            max(std_y, 0.05),
+            max(std_theta, 0.02)
+        ])
+
+        new_samples = np.random.normal(
+            loc=mean_pose,
+            scale=std_pose,
+            size=(self.n_resample, 3)
+        )
+
+        new_samples[:, 2] = wrap_nparray_to_pi(new_samples[:, 2])
+
+        self.particles[worst_indices] = new_samples
+
+        self.weights = np.ones(self.n_particles) / self.n_particles
         
-        # 1. Resample particles using self.weights
-        #    High-weight particles are more likely to be selected.
-        #    Low-weight particles are less likely to survive.
+        return
         
-
-        # 2. Keep/copy the selected particles
-        #    The new particle set is made from the selected old particles.
-
-        # 3. Optional: add small random noise
-        #    This helps maintain particle diversity so particles do not all collapse
-        #    into identical copies.
-
-        # 4. Reset weights to uniform
-        #    After resampling, each particle starts with equal weight again.
-
-        raise NotImplementedError
 
 
 
