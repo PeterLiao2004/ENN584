@@ -95,10 +95,14 @@ class OccupancyGrid(object):
         raise NotImplementedError
         
     def ij_to_world(self, i, j):
-        raise NotImplementedError
+        x = self.bounds[0] + j * self.resolution
+        y = self.bounds[1] + i * self.resolution
+        return x, y
         
     def world_to_ij(self, x, y):
-        raise NotImplementedError
+        i = int((y - self.bounds[1]) / self.resolution)
+        j = int((x - self.bounds[0]) / self.resolution)
+        return i, j
     
 
 
@@ -161,7 +165,7 @@ if __name__ == "__main__":
     
     #load in a map
     mapfile = 'map.png'
-    pathfile = 'map_sporadic_path.txt'
+    pathfile = 'map1_path.txt'
     true_map = Map(mapfile, resolution=0.05, origin='centre')
     path = load_path(pathfile)
     
@@ -179,4 +183,4 @@ if __name__ == "__main__":
     bot = Robot()
     
     #continually update the occupancy map based on sensor measurements
-    laser_scanner_occupancy(robot, occupancy_grid)
+    laser_scanner_occupancy(bot, occupancy_grid)

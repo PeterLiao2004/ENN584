@@ -14,13 +14,18 @@ rosrun rqt_robot_steering rqt_robot_steering
 from PIL import Image 
 import numpy as np
 import time
-from std_msgs.msg import ColorRGBA
-from geometry_msgs.msg import Twist, Point
-from sensor_msgs.msg import LaserScan
-from rosgraph_msgs.msg import Clock
-from visualization_msgs.msg import Marker
-import tf_conversions
-from tf import TransformBroadcaster
+
+try:
+    from std_msgs.msg import ColorRGBA
+    from geometry_msgs.msg import Twist, Point
+    from sensor_msgs.msg import LaserScan
+    from rosgraph_msgs.msg import Clock
+    from visualization_msgs.msg import Marker
+    import tf_conversions
+    from tf import TransformBroadcaster
+except ImportError:
+    ColorRGBA = Twist = Point = LaserScan = Clock = Marker = None
+    tf_conversions = TransformBroadcaster = None
 
 
 pi = np.pi
@@ -58,14 +63,16 @@ class RealMap:
         '''
         Convert from  grid coordinates (row, column) to world coordinates (x, y) in m
         '''
-        raise NotImplementedError
+        x = j * self.resolution
+        y = (self.gridmap.shape[0] - i) * self.resolution
         return x, y
 
     def to_map (self, x, y):
         '''
         Convert from world coordinates (x, y) in m to grid coordinates (row, column)
         '''
-        raise NotImplementedError
+        i = int(self.gridmap.shape[0] - y / self.resolution)
+        j = int(x / self.resolution)
         return i, j
 
     def is_inside (self, i, j):
@@ -208,5 +215,3 @@ if __name__ == "__main__":
     #Do a full laser scan from the robot's position
     obstacle_map.set_robot_pos(x, y, theta)
     scan = obstacle_map.get_measurements(occupancy_grid=None)
-
-
