@@ -65,8 +65,23 @@ class OccupancyGrid(object):
         Outputs:
         None
         '''
+        i = int(i)
+        j = int(j)
 
-        raise NotImplementedError
+        # if the cell is out of bounds, ignore it
+        if i < 0 or j < 0 or i >= self.grid.shape[0] or j >= self.grid.shape[1]:
+            return
+
+        # Odds of occupancy and free space. Change these to adjust how strongly
+        # each observation updates the map.
+        p_occ = 0.7
+        p_free = 0.3
+        
+        # update the log-odds value in the grid based on whether we observed a collision or not.
+        if collision:
+            self.grid[i, j] += self.prob_2_log_odds(p_occ)
+        else:
+            self.grid[i, j] += self.prob_2_log_odds(p_free)
 
     def prob_2_log_odds(self, p):
         '''
