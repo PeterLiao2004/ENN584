@@ -49,11 +49,14 @@ r2d = lambda x: x*180/pi
 
 class OccupancyGrid(object):
     def __init__(self, map_bounds, resolution, occupied_threshold):
-        self.bounds = map_bounds #in form [ xmin, ymin, xmax, ymax]
+        self.bounds = map_bounds # in form [xmin, ymin, xmax, ymax]
         self.resolution = resolution
-        xsize = (self.bounds[2] - self.bounds[0])/self.resolution
-        ysize = (self.bounds[3] - self.bounds[1])/self.resolution
-        self.grid = np.zeros((xsize, ysize))
+        self.occupied_threshold = occupied_threshold
+
+        xsize = int((self.bounds[2] - self.bounds[0]) / self.resolution)
+        ysize = int((self.bounds[3] - self.bounds[1]) / self.resolution)
+
+        self.grid = np.zeros((ysize, xsize))
     
     def update(self, i, j, collision):
         '''
@@ -136,9 +139,23 @@ def laser_scanner_occupancy(robot, occupancy_grid):
     while True:
         laser_scan, _ = robot.step()
         
-        #figure out all of the cells that i have new information on
+        #figure out all of the cells that i have new information on, 
+        #
+        #I WILL GIVE YOU THIS CODE IN A SECOND
+        angles = robot.laser_angles
+        angle_idx = 0
+        for r, collision in laser_scan:
+            start_pose = robot.get_pose()
+
+            row_list, col_list = robot.map.cast_ray(start_pose[0], start_pose[1], r, util_funcs.wrapToPi(start_pose[2] + angles[angle_idx]))
+
+            angle_idx += 1
+
+            #use the row_list and col_list to update the map for each laser scan here
+
+
         
-        #update my belief that those cells are occupied based on this info
+        #for each cell identified, orccupancy_grid.update()
         
         break
     
