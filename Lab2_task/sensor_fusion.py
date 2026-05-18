@@ -121,6 +121,7 @@ class OccupancyGrid(object):
         
     def plot_occupancy_grid(self):
         prob_grid = self.log_odds_2_prob(self.grid)
+        plot_extent = [self.bounds[0], self.bounds[2], self.bounds[1], self.bounds[3]]
 
         plt.figure()
         plt.imshow(prob_grid,
@@ -128,7 +129,8 @@ class OccupancyGrid(object):
                    origin='lower',
                    vmin=0,
                    vmax=1,
-                   extent=self.bounds)
+                   extent=plot_extent,
+                   interpolation='nearest')
         plt.colorbar(label='Occupancy probability')
         plt.xlabel('x (m)')
         plt.ylabel('y (m)')
