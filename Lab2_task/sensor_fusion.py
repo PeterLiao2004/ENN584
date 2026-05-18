@@ -194,18 +194,34 @@ if __name__ == "__main__":
     true_map = Map(mapfile, resolution=0.05, origin='centre')
     path = load_path(pathfile)
     
+    # Create robot and set it to the start of the path
     bot = Robot(pose = path[0],
                 true_map=true_map,
                 path=path)
+    
+    # Create an occupancy grid to represent the world around the robot.
+    # occupancy_grid = OccupancyGrid(
+    #     map_bounds=[xmin, ymin, xmax, ymax],
+    #     resolution=0.05,
+    #     occupied_threshold=0.5
+    # )
+    
+    # Choose mapping mode
+    #   - laser only
+    #   - radar only
+    #   - early fusion
+    #   - late fusion
+    
+    #continually update the occupancy map based on sensor measurements
+    # laser_scanner_occupancy(bot, occupancy_grid)
+    
+    # For each step, get sensor scans, convert measurement to grid cells, update the grid
     for i in range(len(path)):
         show = True
         laser_scan, radar_scan = bot.step(show_ray=show)
+        
+    # Convert log odds to probabilities for visualization
     
+    # Plot the final occupancy grid map
     
-    occupancy_grid = OccupancyGrid()
-    
-    #create the robot
-    bot = Robot()
-    
-    #continually update the occupancy map based on sensor measurements
-    laser_scanner_occupancy(bot, occupancy_grid)
+
