@@ -39,6 +39,7 @@ Last edited: May 15, 2024
 -------------------------------------------------------------------------------
 """
 import numpy as np
+import matplotlib.pyplot as plt
 from util_funcs import wrapToPi, Robot, Map, load_path
 
 #a couple of other useful quantities to have
@@ -119,8 +120,20 @@ class OccupancyGrid(object):
         return p.item() if p.shape == () else p
         
     def plot_occupancy_grid(self):
-        
-        raise NotImplementedError
+        prob_grid = self.log_odds_2_prob(self.grid)
+
+        plt.figure()
+        plt.imshow(prob_grid,
+                   cmap='gray_r',
+                   origin='lower',
+                   vmin=0,
+                   vmax=1,
+                   extent=self.bounds)
+        plt.colorbar(label='Occupancy probability')
+        plt.xlabel('x (m)')
+        plt.ylabel('y (m)')
+        plt.title('Occupancy Grid')
+        plt.show()
         
     def ij_to_world(self, i, j):
         x = self.bounds[0] + j * self.resolution
@@ -147,7 +160,7 @@ def laser_scanner_occupancy(robot, occupancy_grid):
         for r, collision in laser_scan:
             start_pose = robot.get_pose()
 
-            row_list, col_list = robot.map.cast_ray(start_pose[0], start_pose[1], r, util_funcs.wrapToPi(start_pose[2] + angles[angle_idx]))
+            row_list, col_list = robot.map.cast_ray(start_pose[0], start_pose[1], r, wrapToPi(start_pose[2] + angles[angle_idx]))
 
             angle_idx += 1
 
