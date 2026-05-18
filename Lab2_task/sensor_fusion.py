@@ -87,6 +87,64 @@ class OccupancyGrid(object):
         else:
             self.grid[i, j] += self.prob_2_log_odds(p_free)
 
+    def update_ray(self, x0, y0, theta, distance, collision):
+        '''
+        Update every grid cell crossed by one sensor ray.
+
+        Inputs:
+        x0, y0: starting position of the ray in world coordinates
+        theta: ray angle in world frame, in radians
+        distance: measured range along the ray
+        collision: Boolean. True if the ray ended by hitting an obstacle.
+        Outputs:
+        None
+        '''
+        if distance is None or np.isnan(distance):
+            return
+
+        # calculate the endpoint (x1, y1) of the ray in world coordinates
+        x1 = x0 + distance * np.cos(theta)
+        y1 = y0 + distance * np.sin(theta)
+        
+        # Convert to grid coordinates
+        i0, j0 = self.world_to_ij(x0, y0)
+        i1, j1 = self.world_to_ij(x1, y1)
+
+        # Use Bresenham's line algorithm to find all the grid cells that the ray passes through
+        
+        # di and dj: the absolute differences in the grid coordinates
+        di = abs(i1 - i0)
+        dj = abs(j1 - j0)
+        # si and sj: the step direction for i and j (either +1 or -1)
+        si = 1 if i0 < i1 else -1
+        sj = 1 if j0 < j1 else -1
+
+        i_current = i0
+        j_current = j0
+
+        # Depending on whether the ray is more horizontal or vertical, we step through the grid cells in the appropriate order
+        if dj > di:
+            err = dj / 2
+            while j_current != j1:
+                self.update(i_current, j_current, False)
+                err -= di
+                if err < 0:
+                    i_current += si
+                    err += dj
+                j_current += sj
+        else:
+            err = di / 2
+            while i_current != i1:
+                self.update(i_current, j_current, False)
+                err -= dj
+                if err < 0:
+                    j_current += sj
+                    err += di
+                i_current += si
+
+        # Update the final cell where the ray ends with the collision information
+        self.update(i1, j1, collision)
+
     def prob_2_log_odds(self, p):
         '''
         Your code here. Convert from probability to log-odds.
@@ -244,7 +302,7 @@ if __name__ == "__main__":
     #   - early fusion
     #   - late fusion
     
-    #continually update the occupancy map based on sensor measurements
+    #Example: continually update the occupancy map based on sensor measurements
     # laser_scanner_occupancy(bot, occupancy_grid)
     
     # For each step, get sensor scans, convert measurement to grid cells, update the grid
