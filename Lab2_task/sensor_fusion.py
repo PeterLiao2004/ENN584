@@ -70,14 +70,15 @@ class OccupancyGrid(object):
 
     def prob_2_log_odds(self, p):
         '''
-        Your code here. Convert from log-odds to probability.
+        Your code here. Convert from probability to log-odds.
         Inputs:
         p = probability. Float in range [0,1]
         
         Outputs:
         l - log-odds. Float from -Inf to +Inf
         '''
-        raise NotImplementedError
+        with np.errstate(divide='ignore', invalid='ignore'):
+            return np.log(np.asarray(p) / (1 - np.asarray(p)))
 
     def log_odds_2_prob(self, l):
         
@@ -88,7 +89,16 @@ class OccupancyGrid(object):
         Outputs:
         p = probability. Float in range [0,1]
         '''
-        raise NotImplementedError
+        l = np.asarray(l)
+        p = np.empty_like(l, dtype=float)
+
+        positive = l >= 0
+        p[positive] = 1 / (1 + np.exp(-l[positive]))
+
+        exp_l = np.exp(l[~positive])
+        p[~positive] = exp_l / (1 + exp_l)
+
+        return p.item() if p.shape == () else p
         
     def plot_occupancy_grid(self):
         
