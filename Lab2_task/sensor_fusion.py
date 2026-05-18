@@ -206,33 +206,25 @@ class OccupancyGrid(object):
         return i, j
     
 
-
+# Update occupancy grid based on laser scanner measurements
 def laser_scanner_occupancy(robot, occupancy_grid):
-    
-    while True:
-        laser_scan, _ = robot.step()
-        
-        #figure out all of the cells that i have new information on, 
-        #
-        #I WILL GIVE YOU THIS CODE IN A SECOND
-        angles = robot.laser_angles
-        angle_idx = 0
-        for r, collision in laser_scan:
-            start_pose = robot.get_pose()
+    for step in range(len(robot.path)):
+        laser_scan, _ = robot.step(step=step)
 
-            row_list, col_list = robot.map.cast_ray(start_pose[0], start_pose[1], r, wrapToPi(start_pose[2] + angles[angle_idx]))
+        ranges, collisions = laser_scan
 
-            angle_idx += 1
+        for distance, collision, angle in zip(ranges, collisions, robot.laser_angles):
+            theta = wrapToPi(robot.pose[2] + angle)
 
-            #use the row_list and col_list to update the map for each laser scan here
+            occupancy_grid.update_ray(
+                robot.pose[0],
+                robot.pose[1],
+                theta,
+                distance,
+                collision
+            )
 
-
-        
-        #for each cell identified, orccupancy_grid.update()
-        
-        break
-    
-    raise NotImplementedError()
+    return occupancy_grid
     
 def radar_occupancy(robot, occupancy_grid):
     
@@ -281,20 +273,30 @@ if __name__ == "__main__":
     #load in a map
     mapfile = 'map.png'
     pathfile = 'map1_path.txt'
-    true_map = Map(mapfile, resolution=0.05, origin='centre')
+        
+    resolution = 0.05
+    occupied_threshold = 0.7
+    
+    true_map = Map(mapfile, resolution=resolution, origin='centre')
     path = load_path(pathfile)
+    
+    map_height = true_map.shape[0] * true_map.resolution
+    map_width = true_map.shape[1] * true_map.resolution
+    
+    # Create an occupancy grid to represent the world around the robot.
+    occupancy_grid = OccupancyGrid(
+        map_bounds=[-map_width / 2, -map_height / 2, map_width / 2, map_height / 2],
+        resolution=resolution,
+        occupied_threshold=occupied_threshold
+    )
     
     # Create robot and set it to the start of the path
     bot = Robot(pose = path[0],
                 true_map=true_map,
                 path=path)
     
-    # Create an occupancy grid to represent the world around the robot.
-    # occupancy_grid = OccupancyGrid(
-    #     map_bounds=[xmin, ymin, xmax, ymax],
-    #     resolution=0.05,
-    #     occupied_threshold=0.5
-    # )
+    occupancy_grid = laser_scanner_occupancy(bot, occupancy_grid)
+    occupancy_grid.plot_occupancy_grid()
     
     # Choose mapping mode
     #   - laser only
