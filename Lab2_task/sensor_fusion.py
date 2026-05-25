@@ -177,22 +177,40 @@ class OccupancyGrid(object):
 
         return p.item() if p.shape == () else p
         
-    def plot_occupancy_grid(self):
+    def plot_occupancy_grid(self, fit_to_observed=True):
         prob_grid = self.log_odds_2_prob(self.grid)
         plot_extent = [self.bounds[0], self.bounds[2], self.bounds[1], self.bounds[3]]
 
-        plt.figure()
-        plt.imshow(prob_grid,
-                   cmap='gray_r',
-                   origin='lower',
-                   vmin=0,
-                   vmax=1,
-                   extent=plot_extent,
-                   interpolation='nearest')
-        plt.colorbar(label='Occupancy probability')
-        plt.xlabel('x (m)')
-        plt.ylabel('y (m)')
-        plt.title('Occupancy Grid')
+        fig, ax = plt.subplots()
+        im = ax.imshow(prob_grid,
+                       cmap='gray_r',
+                       origin='lower',
+                       vmin=0,
+                       vmax=1,
+                       extent=plot_extent,
+                       interpolation='nearest')
+        ax.set_aspect('equal', adjustable='box')
+
+        if fit_to_observed:
+            observed_cells = np.argwhere(self.grid != 0)
+            if observed_cells.size > 0:
+                i_min, j_min = observed_cells.min(axis=0)
+                i_max, j_max = observed_cells.max(axis=0)
+                padding = 20 * self.resolution
+
+                x_min, y_min = self.ij_to_world(i_min, j_min)
+                x_max, y_max = self.ij_to_world(i_max + 1, j_max + 1)
+
+                ax.set_xlim(max(self.bounds[0], x_min - padding),
+                            min(self.bounds[2], x_max + padding))
+                ax.set_ylim(max(self.bounds[1], y_min - padding),
+                            min(self.bounds[3], y_max + padding))
+
+        fig.colorbar(im, ax=ax, label='Occupancy probability')
+        ax.set_xlabel('x (m)')
+        ax.set_ylabel('y (m)')
+        ax.set_title('Occupancy Grid')
+        fig.tight_layout()
         plt.show()
         
     def ij_to_world(self, i, j):
@@ -206,72 +224,101 @@ class OccupancyGrid(object):
         return i, j
     
 
+def update_occupancy_with_laser_scan(robot, occupancy_grid, laser_scan):
+    ranges, collisions = laser_scan
+
+    for distance, collision, angle in zip(ranges, collisions, robot.laser_angles):
+        theta = wrapToPi(robot.pose[2] + angle)
+
+        occupancy_grid.update_ray(
+            robot.pose[0],
+            robot.pose[1],
+            theta,
+            distance,
+            collision
+        )
+
+
+def update_occupancy_with_radar_scan(robot, occupancy_grid, radar_scan):
+    range_uncertainty = robot.radar_covariance[0]
+    occupied_radius = max(1, int(np.ceil(range_uncertainty / occupancy_grid.resolution)))
+
+    ranges, collisions = radar_scan
+
+    for distance, collision, angle in zip(ranges, collisions, robot.radar_angles):
+        theta = wrapToPi(robot.pose[2] + angle)
+        x0 = robot.pose[0]
+        y0 = robot.pose[1]
+
+        if collision:
+            free_distance = max(0, distance - range_uncertainty)
+            occupancy_grid.update_ray(x0, y0, theta, free_distance, False)
+
+            x_hit = x0 + distance * np.cos(theta)
+            y_hit = y0 + distance * np.sin(theta)
+            i_hit, j_hit = occupancy_grid.world_to_ij(x_hit, y_hit)
+
+            for di in range(-occupied_radius, occupied_radius + 1):
+                for dj in range(-occupied_radius, occupied_radius + 1):
+                    if di**2 + dj**2 <= occupied_radius**2:
+                        occupancy_grid.update(i_hit + di, j_hit + dj, True)
+        else:
+            occupancy_grid.update_ray(x0, y0, theta, distance, False)
+
+
 # Update occupancy grid based on laser scanner measurements
 def laser_scanner_occupancy(robot, occupancy_grid):
     for step in range(len(robot.path)):
         laser_scan, _ = robot.step(step=step)
-
-        ranges, collisions = laser_scan
-
-        for distance, collision, angle in zip(ranges, collisions, robot.laser_angles):
-            theta = wrapToPi(robot.pose[2] + angle)
-
-            occupancy_grid.update_ray(
-                robot.pose[0],
-                robot.pose[1],
-                theta,
-                distance,
-                collision
-            )
+        update_occupancy_with_laser_scan(robot, occupancy_grid, laser_scan)
 
     return occupancy_grid
     
 def radar_occupancy(robot, occupancy_grid):
-    
-    while True:
-        _, radar_scan = robot.step()
-        break
-    
-    raise NotImplementedError()
-    
+    for step in range(len(robot.path)):
+        _, radar_scan = robot.step(step=step)
+        update_occupancy_with_radar_scan(robot, occupancy_grid, radar_scan)
+
+    return occupancy_grid
+	    
 def sensor_fusion_occupancy_early(robot, occupancy_grid):
-    
-    while True:
-        laser_scan, radar_scan = robot.step()
-        #figure out all of the cells that i have new information on
-        
-        #update my belief that those cells are occupied based on this info
-        #do my sensors agree? or disagree?
-        
-        #combine info from the two sensors together and create only one occupancy map
-        
-        break
-        
-    raise NotImplementedError()
-    
+    for step in range(len(robot.path)):
+        laser_scan, radar_scan = robot.step(step=step)
+
+        # Early fusion: put both sensors into the same belief update at each pose.
+        update_occupancy_with_laser_scan(robot, occupancy_grid, laser_scan)
+        update_occupancy_with_radar_scan(robot, occupancy_grid, radar_scan)
+
+    return occupancy_grid
+	    
 def sensor_fusion_occupancy_late(robot, occupancy_grid):
-    
-    while True:
-        laser_scan, radar_scan = robot.step()
-        
-        #figure out all of the cells that i have new information on
-        
-        #update my belief that those cells are occupied based on this info
-        
-        #build occupancy mad from radar
-        
-        #build occupancy map from laser
-        
-        #combine them together
-        
-        break
-        
-    raise NotImplementedError()
+    laser_grid = OccupancyGrid(
+        map_bounds=occupancy_grid.bounds,
+        resolution=occupancy_grid.resolution,
+        occupied_threshold=occupancy_grid.occupied_threshold
+    )
+    radar_grid = OccupancyGrid(
+        map_bounds=occupancy_grid.bounds,
+        resolution=occupancy_grid.resolution,
+        occupied_threshold=occupancy_grid.occupied_threshold
+    )
+
+    for step in range(len(robot.path)):
+        laser_scan, radar_scan = robot.step(step=step)
+
+        # Late fusion: build separate maps first, then combine their beliefs.
+        update_occupancy_with_laser_scan(robot, laser_grid, laser_scan)
+        update_occupancy_with_radar_scan(robot, radar_grid, radar_scan)
+
+    radar_weight = 0.5
+    occupancy_grid.grid = laser_grid.grid + radar_weight * radar_grid.grid
+
+    return occupancy_grid
 
 if __name__ == "__main__":
     
     #load in a map
-    mapfile = 'map.png'
+    mapfile = 'map1.png'
     pathfile = 'map1_path.txt'
         
     resolution = 0.05
@@ -291,11 +338,17 @@ if __name__ == "__main__":
     )
     
     # Create robot and set it to the start of the path
-    bot = Robot(pose = path[0],
-                true_map=true_map,
-                path=path)
+    bot = Robot(
+        pose=path[0],
+        true_map=true_map,
+        path=path,
+        pose_covariance=[0, 0, 0],
+        radar_covariance=[0, 0]
+    )
     
-    occupancy_grid = laser_scanner_occupancy(bot, occupancy_grid)
+    occupancy_grid = sensor_fusion_occupancy_early(bot, occupancy_grid)
+    
+    # Plot the final occupancy grid map
     occupancy_grid.plot_occupancy_grid()
     
     # Choose mapping mode
@@ -308,12 +361,11 @@ if __name__ == "__main__":
     # laser_scanner_occupancy(bot, occupancy_grid)
     
     # For each step, get sensor scans, convert measurement to grid cells, update the grid
-    for i in range(len(path)):
-        show = True
-        laser_scan, radar_scan = bot.step(show_ray=show)
+    # for i in range(len(path)):
+    #     show = True
+    #     laser_scan, radar_scan = bot.step(show_ray=show)
         
     # Convert log odds to probabilities for visualization
     
-    # Plot the final occupancy grid map
     
 
